@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>💬 即时通讯</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+<!-- ══════════════════════ 登录/注册页 ══════════════════════ -->
+<div id="auth-page" class="page active">
+  <div class="auth-container">
+    <div class="auth-logo">
+      <div class="logo-icon">💬</div>
+      <h1>即时通讯</h1>
+      <p>随时随地，畅聊无阻</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="tab-btn active" onclick="switchTab('login')">登录</button>
+      <button class="tab-btn" onclick="switchTab('register')">注册</button>
+    </div>
+    <div id="login-form" class="auth-form">
+      <div class="input-group">
+        <span class="input-icon">👤</span>
+        <input type="text" id="login-username" placeholder="用户名" autocomplete="username">
+      </div>
+      <div class="input-group">
+        <span class="input-icon">🔒</span>
+        <input type="password" id="login-password" placeholder="密码" autocomplete="current-password">
+      </div>
+      <button class="btn-primary" onclick="login()">登 录</button>
+    </div>
+    <div id="register-form" class="auth-form hidden">
+      <div class="input-group">
+        <span class="input-icon">👤</span>
+        <input type="text" id="reg-username" placeholder="用户名（至少2字符）" autocomplete="username">
+      </div>
+      <div class="input-group">
+        <span class="input-icon">🔒</span>
+        <input type="password" id="reg-password" placeholder="密码" autocomplete="new-password">
+      </div>
+      <button class="btn-primary" onclick="register()">注 册</button>
+    </div>
+    <div id="auth-error" class="error-msg hidden"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════ 主聊天页 ══════════════════════ -->
+<div id="chat-page" class="page hidden">
+  <div class="chat-layout">
+
+    <!-- ── 左侧边栏 ── -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="my-avatar" id="my-avatar-btn">
+          <div class="avatar-circle" id="my-avatar"></div>
+          <span id="my-username"></span>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" onclick="showCreateGroup()" title="创建群组">➕</button>
+          <button class="icon-btn" onclick="showUserList()" title="发起私聊">💬</button>
+          <button class="icon-btn" onclick="logout()" title="退出">🚪</button>
+        </div>
+      </div>
+
+      <!-- 搜索 -->
+      <div class="search-bar">
+        <input type="text" id="room-search" placeholder="🔍 搜索聊天..." oninput="filterRooms(this.value)">
+      </div>
+
+      <!-- 房间列表 -->
+      <div class="room-list" id="room-list"></div>
+    </aside>
+
+    <!-- ── 右侧聊天区 ── -->
+    <main id="main-chat" class="main-chat">
+      <!-- 默认欢迎屏 -->
+      <div id="welcome-screen" class="welcome-screen">
+        <div class="welcome-icon">💬</div>
+        <h2>选择一个聊天开始</h2>
+        <p>在左侧列表选择联系人或群组</p>
+      </div>
+
+      <!-- 聊天窗口 -->
+      <div id="chat-window" class="chat-window hidden">
+        <!-- 顶栏 -->
+        <div class="chat-header">
+          <button class="back-btn" onclick="backToSidebar()">◀</button>
+          <div class="chat-header-info">
+            <div class="chat-header-avatar" id="chat-header-avatar"></div>
+            <div>
+              <div class="chat-header-name" id="chat-room-name"></div>
+              <div class="chat-header-status" id="chat-room-status"></div>
+            </div>
+          </div>
+          <button class="icon-btn" onclick="toggleMembersPanel()" id="members-btn">👥</button>
+        </div>
+
+        <!-- 消息区 -->
+        <div class="messages-container" id="messages-container">
+          <div id="messages-list"></div>
+          <div id="typing-indicator" class="typing-indicator hidden"></div>
+        </div>
+
+        <!-- 输入区 -->
+        <div class="input-area">
+          <div class="input-toolbar">
+            <button class="tool-btn" onclick="triggerFileUpload('image')" title="图片">🖼️</button>
+            <button class="tool-btn" onclick="triggerFileUpload('file')" title="文件">📎</button>
+            <button class="tool-btn" onclick="toggleEmojiPicker()" title="表情">😊</button>
+          </div>
+          <div class="input-row">
+            <textarea id="msg-input" placeholder="输入消息..." rows="1"
+              onkeydown="handleKeyDown(event)"
+              oninput="handleInput(this); sendTyping(true)"
+              onblur="sendTyping(false)"></textarea>
+            <button class="send-btn" onclick="sendMessage()" id="send-btn">
+              <span>➤</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 表情面板 -->
+        <div id="emoji-picker" class="emoji-picker hidden"></div>
+      </div>
+    </main>
+
+    <!-- ── 成员面板 ── -->
+    <div id="members-panel" class="members-panel hidden">
+      <div class="panel-header">
+        <h3>成员列表</h3>
+        <button onclick="toggleMembersPanel()">✕</button>
+      </div>
+      <div id="members-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════ 模态框 ══════════════════════ -->
+<!-- 用户列表 (发起私聊) -->
+<div id="user-list-modal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>选择联系人</h3>
+      <button onclick="closeModal('user-list-modal')">✕</button>
+    </div>
+    <input type="text" id="user-search" placeholder="🔍 搜索用户..." oninput="filterUsers(this.value)" class="modal-search">
+    <div id="modal-user-list" class="modal-list"></div>
+  </div>
+</div>
+
+<!-- 创建群组 -->
+<div id="create-group-modal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>创建群组</h3>
+      <button onclick="closeModal('create-group-modal')">✕</button>
+    </div>
+    <input type="text" id="group-name" placeholder="群组名称" class="modal-search">
+    <p class="modal-label">选择成员：</p>
+    <div id="group-user-list" class="modal-list"></div>
+    <button class="btn-primary mt-8" onclick="createGroup()">创建群组</button>
+  </div>
+</div>
+
+<!-- 图片预览 -->
+<div id="image-modal" class="modal hidden" onclick="closeModal('image-modal')">
+  <div class="image-preview-box">
+    <img id="preview-img" src="" alt="">
+  </div>
+</div>
+
+<!-- Toast提示 -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- 文件上传输入框 -->
+<input type="file" id="file-input-image" accept="image/*" style="display:none" onchange="uploadFile(this,'image')">
+<input type="file" id="file-input-file" style="display:none" onchange="uploadFile(this,'file')">
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

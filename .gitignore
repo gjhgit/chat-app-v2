@@ -1,0 +1,8 @@
+node_modules/
+public/uploads/*
+!public/uploads/.gitkeep
+*.log
+.env
+tunnel.log
+tunnel-err.log
+start-public.js
