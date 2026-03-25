@@ -110,6 +110,9 @@
             <button class="tool-btn" onclick="triggerFileUpload('image')" title="图片">🖼️</button>
             <button class="tool-btn" onclick="triggerFileUpload('file')" title="文件">📎</button>
             <button class="tool-btn" onclick="toggleEmojiPicker()" title="表情">😊</button>
+            <button class="tool-btn" onclick="toggleVoiceRecorder()" title="语音">🎤</button>
+            <button class="tool-btn" onclick="startVideoCall()" title="视频通话">📹</button>
+            <button class="tool-btn" onclick="startAudioCall()" title="语音通话">📞</button>
           </div>
           <div class="input-row">
             <textarea id="msg-input" placeholder="输入消息..." rows="1"
@@ -119,6 +122,22 @@
             <button class="send-btn" onclick="sendMessage()" id="send-btn">
               <span>➤</span>
             </button>
+          </div>
+        </div>
+        
+        <!-- 语音录制面板 -->
+        <div id="voice-recorder" class="voice-recorder hidden">
+          <div class="voice-recorder-inner">
+            <div class="voice-wave" id="voice-wave"></div>
+            <div class="voice-time" id="voice-time">00:00</div>
+            <div class="voice-actions">
+              <button class="voice-btn cancel" onclick="cancelVoiceRecord()">✕</button>
+              <button class="voice-btn record" id="voice-record-btn" onmousedown="startVoiceRecord()" onmouseup="stopVoiceRecord()" ontouchstart="startVoiceRecord()" ontouchend="stopVoiceRecord()">
+                <span class="record-icon">🎤</span>
+              </button>
+              <button class="voice-btn send" onclick="sendVoiceMessage()">➤</button>
+            </div>
+            <div class="voice-hint">按住录音，松开发送</div>
           </div>
         </div>
 
@@ -173,6 +192,56 @@
   </div>
 </div>
 
+<!-- 通话界面 -->
+<div id="call-modal" class="call-modal hidden">
+  <div class="call-container">
+    <div class="call-peer-info">
+      <div class="call-avatar" id="call-avatar"></div>
+      <div class="call-name" id="call-name">正在呼叫...</div>
+      <div class="call-status" id="call-status">等待接听</div>
+    </div>
+    
+    <div class="call-videos">
+      <video id="remote-video" class="remote-video" autoplay playsinline></video>
+      <video id="local-video" class="local-video" autoplay playsinline muted></video>
+    </div>
+    
+    <div class="call-actions">
+      <button class="call-btn mute" onclick="toggleMute()" id="mute-btn">
+        <span>🎤</span>
+        <small>静音</small>
+      </button>
+      <button class="call-btn video" onclick="toggleVideo()" id="video-btn">
+        <span>📹</span>
+        <small>视频</small>
+      </button>
+      <button class="call-btn end" onclick="endCall()">
+        <span>📞</span>
+        <small>挂断</small>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 来电提示 -->
+<div id="incoming-call-modal" class="incoming-call-modal hidden">
+  <div class="incoming-call-box">
+    <div class="incoming-avatar" id="incoming-avatar"></div>
+    <div class="incoming-name" id="incoming-name"></div>
+    <div class="incoming-type" id="incoming-type">来电</div>
+    <div class="incoming-actions">
+      <button class="incoming-btn decline" onclick="declineCall()">
+        <span>✕</span>
+        <small>拒绝</small>
+      </button>
+      <button class="incoming-btn accept" onclick="acceptCall()">
+        <span>📞</span>
+        <small>接听</small>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast提示 -->
 <div id="toast" class="toast hidden"></div>
 
@@ -182,5 +251,6 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
+<script src="webrtc.js"></script>
 </body>
 </html>

@@ -402,6 +402,59 @@ io.on('connection', (socket) => {
     socket.emit('users_list', list);
   });
 
+  // ═══════════════════════════════════════════
+  // WebRTC 信令
+  // ═══════════════════════════════════════════
+  
+  // 呼叫请求
+  socket.on('call_request', ({ targetId, type, offer }) => {
+    if (!currentUserId) return;
+    const target = users.get(targetId);
+    if (target && target.socketId) {
+      io.to(target.socketId).emit('call_request', {
+        callerId: currentUserId,
+        type,
+        offer
+      });
+    }
+  });
+  
+  // 呼叫应答
+  socket.on('call_answer', ({ targetId, answer }) => {
+    if (!currentUserId) return;
+    const target = users.get(targetId);
+    if (target && target.socketId) {
+      io.to(target.socketId).emit('call_answer', { answer });
+    }
+  });
+  
+  // 拒绝呼叫
+  socket.on('call_decline', ({ targetId }) => {
+    if (!currentUserId) return;
+    const target = users.get(targetId);
+    if (target && target.socketId) {
+      io.to(target.socketId).emit('call_decline');
+    }
+  });
+  
+  // 结束通话
+  socket.on('call_end', ({ targetId }) => {
+    if (!currentUserId) return;
+    const target = users.get(targetId);
+    if (target && target.socketId) {
+      io.to(target.socketId).emit('call_end');
+    }
+  });
+  
+  // ICE 候选
+  socket.on('ice_candidate', ({ targetId, candidate }) => {
+    if (!currentUserId) return;
+    const target = users.get(targetId);
+    if (target && target.socketId) {
+      io.to(target.socketId).emit('ice_candidate', { candidate });
+    }
+  });
+
   // 断开连接
   socket.on('disconnect', () => {
     if (currentUserId) {

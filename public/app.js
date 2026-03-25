@@ -226,6 +226,10 @@ function enterChat() {
   updateMyHeader();
   initSocket();
   buildEmojiPicker();
+  // 初始化 WebRTC 事件
+  if (typeof initWebRTCEvents === 'function') {
+    initWebRTCEvents();
+  }
 }
 
 function updateMyHeader() {
@@ -328,6 +332,7 @@ function getUserColor(room) {
 function formatPreview(msg) {
   if (msg.type === 'image') return '[图片]';
   if (msg.type === 'file') return '[文件] ' + (msg.fileName || '');
+  if (msg.type === 'voice') return '[语音] ' + (msg.duration || 0) + '秒';
   return msg.content || '';
 }
 
@@ -541,6 +546,15 @@ function buildBubbleContent(msg) {
           <div class="msg-file-size">${size}</div>
         </div>
       </a>`;
+  }
+  if (msg.type === 'voice') {
+    const duration = msg.duration || 0;
+    const width = Math.max(80, Math.min(200, duration * 10));
+    return `
+      <div class="voice-message" onclick="playVoiceMessage('${msg.fileUrl}', this)" style="width: ${width}px">
+        <span class="voice-message-icon">▶️</span>
+        <span class="voice-message-duration">${duration}秒</span>
+      </div>`;
   }
   // 文本，处理换行和链接
   return escHtml(msg.content || '').replace(/\n/g, '<br>').replace(
@@ -853,6 +867,62 @@ function renderAvatarEl(el, name, color, avatar) {
 
 function updateRoomPreview(roomId, msg) {
   renderRoomList(document.getElementById('room-search').value);
+}
+
+// ═══════════════════════════════════════════
+// 语音消息播放
+// ═══════════════════════════════════════════
+let currentVoiceAudio = null;
+let currentVoiceElement = null;
+
+function playVoiceMessage(url, element) {
+  // 如果正在播放同一个，则暂停
+  if (currentVoiceAudio && currentVoiceElement === element) {
+    if (!currentVoiceAudio.paused) {
+      currentVoiceAudio.pause();
+      element.classList.remove('playing');
+      element.querySelector('.voice-message-icon').textContent = '▶️';
+    } else {
+      currentVoiceAudio.play();
+      element.classList.add('playing');
+      element.querySelector('.voice-message-icon').textContent = '⏸️';
+    }
+    return;
+  }
+  
+  // 停止之前的
+  if (currentVoiceAudio) {
+    currentVoiceAudio.pause();
+    if (currentVoiceElement) {
+      currentVoiceElement.classList.remove('playing');
+      currentVoiceElement.querySelector('.voice-message-icon').textContent = '▶️';
+    }
+  }
+  
+  // 播放新的
+  currentVoiceAudio = new Audio(url);
+  currentVoiceElement = element;
+  
+  currentVoiceAudio.onplay = () => {
+    element.classList.add('playing');
+    element.querySelector('.voice-message-icon').textContent = '⏸️';
+  };
+  
+  currentVoiceAudio.onpause = () => {
+    element.classList.remove('playing');
+    element.querySelector('.voice-message-icon').textContent = '▶️';
+  };
+  
+  currentVoiceAudio.onended = () => {
+    element.classList.remove('playing');
+    element.querySelector('.voice-message-icon').textContent = '▶️';
+    currentVoiceAudio = null;
+    currentVoiceElement = null;
+  };
+  
+  currentVoiceAudio.play().catch(err => {
+    showToast('播放失败: ' + err.message);
+  });
 }
 
 function showPage(id) {
