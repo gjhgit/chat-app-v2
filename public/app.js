@@ -808,39 +808,62 @@ document.addEventListener('click', (e) => {
 });
 
 // 手机端返回键处理：从聊天室返回到聊天列表
-if (window.innerWidth <= 768) {
-  // 使用 history API 管理返回状态
+(function initBackButtonHandler() {
+  // 标记是否已添加历史记录
   let historyPushed = false;
   
-  // 当打开聊天室时，添加历史记录
-  const originalOpenRoom = openRoom;
+  // 重写 openRoom 函数，在打开聊天室时添加历史记录
+  const originalOpenRoom = window.openRoom;
   window.openRoom = function(roomId, roomName, type) {
-    if (!historyPushed && state.isMobile) {
-      history.pushState({ page: 'chat' }, '', '#chat');
+    // 先执行原函数
+    const result = originalOpenRoom(roomId, roomName, type);
+    
+    // 手机端且未添加过历史记录时，添加一条
+    if (state.isMobile && !historyPushed) {
+      history.pushState({ page: 'chat', roomId: roomId }, '', '#chat');
       historyPushed = true;
+      console.log('添加历史记录:', roomId);
     }
-    return originalOpenRoom(roomId, roomName, type);
+    return result;
+  };
+  
+  // 重写 backToSidebar 函数
+  const originalBackToSidebar = window.backToSidebar;
+  window.backToSidebar = function() {
+    // 先执行原函数
+    const result = originalBackToSidebar();
+    
+    // 重置状态
+    state.currentRoomId = null;
+    historyPushed = false;
+    
+    // 替换当前历史记录，避免用户再次点击返回时退出
+    history.replaceState({ page: 'list' }, '', '#list');
+    
+    return result;
   };
   
   // 监听返回键
-  window.addEventListener('popstate', (e) => {
+  window.addEventListener('popstate', function(e) {
+    console.log('popstate 事件:', e.state, '当前房间:', state.currentRoomId);
+    
+    // 如果有打开的聊天室，先返回列表
     if (state.isMobile && state.currentRoomId) {
-      // 如果有打开的聊天室，先返回列表
+      // 执行返回列表操作
       backToSidebar();
-      state.currentRoomId = null;
-      historyPushed = false;
-      // 阻止默认返回行为
-      e.preventDefault();
+      
+      // 再次添加历史记录，防止继续返回退出网站
+      setTimeout(() => {
+        history.pushState({ page: 'list' }, '', '#list');
+      }, 100);
     }
   });
   
-  // 返回列表时重置历史状态
-  const originalBackToSidebar = backToSidebar;
-  window.backToSidebar = function() {
-    historyPushed = false;
-    return originalBackToSidebar();
-  };
-}
+  // 页面加载时添加初始历史记录
+  if (state.isMobile) {
+    history.replaceState({ page: 'list' }, '', '#list');
+  }
+})();
 
 // 恢复会话
 const savedToken = localStorage.getItem('chat_token');
