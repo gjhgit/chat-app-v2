@@ -272,11 +272,27 @@ function renderRoomList(filter = '') {
 function filterRooms(val) { renderRoomList(val); }
 
 function buildRoomAvatarHtml(room) {
-  const name = room.name || '?';
-  const color = room.type === 'private'
-    ? (getUserColor(room) || '#888')
-    : '#07C160';
+  let name = room.name || '?';
+  let color = '#07C160'; // 默认群组颜色
+  
+  if (room.type === 'private') {
+    color = getUserColor(room) || '#888';
+    // 私聊房间：获取对方用户名
+    const otherUser = getOtherUserInPrivateRoom(room);
+    if (otherUser) {
+      name = otherUser.username || '?';
+    }
+  }
+  
   return `<div class="avatar-wrap"><div class="avatar-circle" style="background:${color}">${name.slice(0,2)}</div></div>`;
+}
+
+// 获取私聊房间中的对方用户信息
+function getOtherUserInPrivateRoom(room) {
+  if (!room.id.startsWith('private_')) return null;
+  const parts = room.id.replace('private_', '').split('_');
+  const otherId = parts.find(id => id !== state.userId);
+  return otherId ? state.users.get(otherId) : null;
 }
 
 function getUserColor(room) {
