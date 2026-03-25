@@ -269,16 +269,23 @@ function renderRoomList(filter = '') {
     const isActive = room.id === state.currentRoomId;
     const avatarHtml = buildRoomAvatarHtml(room);
 
+    // 公共大厅不能删除
+    const canDelete = room.id !== 'public';
+    const deleteTitle = room.type === 'private' ? '删除对话' : '退出群聊';
+    
     return `
-      <div class="room-item ${isActive ? 'active' : ''}" onclick="openRoom('${room.id}', '${escHtml(room.name)}', '${room.type || 'group'}')">
+      <div class="room-item ${isActive ? 'active' : ''}" 
+           onclick="openRoom('${room.id}', '${escHtml(room.name)}', '${room.type || 'group'}')"
+           oncontextmenu="showRoomMenu(event, '${room.id}', '${room.type || 'group'}')">
         <div class="room-avatar">${avatarHtml}</div>
         <div class="room-info">
           <div class="room-name">${escHtml(room.name || room.id)}</div>
           <div class="room-preview">${escHtml(preview)}</div>
         </div>
-        <div>
+        <div class="room-meta">
           <div class="room-time">${timeStr}</div>
           ${unread > 0 ? `<div class="unread-badge">${unread > 99 ? '99+' : unread}</div>` : ''}
+          ${canDelete ? `<button class="room-delete-btn" onclick="event.stopPropagation(); deleteRoom('${room.id}', '${room.type || 'group'}')" title="${deleteTitle}">✕</button>` : ''}
         </div>
       </div>
     `;
@@ -384,6 +391,52 @@ function backToSidebar() {
   }
 }
 
+// 删除/退出房间
+async function deleteRoom(roomId, type) {
+  const action = type === 'private' ? '删除' : '退出';
+  const confirmMsg = type === 'private' 
+    ? '确定要删除这个对话吗？聊天记录将被清除。' 
+    : '确定要退出这个群聊吗？';
+  
+  if (!confirm(confirmMsg)) return;
+  
+  try {
+    const res = await fetch(`/api/rooms/${roomId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': state.token }
+    });
+    
+    if (res.ok) {
+      // 从本地状态中移除
+      state.rooms.delete(roomId);
+      state.unread.delete(roomId);
+      
+      // 如果当前正在查看这个房间，返回欢迎页
+      if (state.currentRoomId === roomId) {
+        state.currentRoomId = null;
+        document.getElementById('chat-window').classList.add('hidden');
+        document.getElementById('welcome-screen').classList.remove('hidden');
+      }
+      
+      renderRoomList();
+      showToast(type === 'private' ? '对话已删除' : '已退出群聊');
+    } else {
+      const err = await res.json();
+      showToast('操作失败: ' + (err.error || '未知错误'));
+    }
+  } catch (e) {
+    showToast('操作失败，请重试');
+  }
+}
+
+// 显示房间右键菜单
+function showRoomMenu(event, roomId, type) {
+  event.preventDefault();
+  // 可以在这里添加更多菜单选项
+  // 目前直接使用删除功能
+  deleteRoom(roomId, type);
+}
+
 // ═══════════════════════════════════════════
 // 消息渲染
 // ═══════════════════════════════════════════
@@ -410,8 +463,32 @@ function renderHistory(messages) {
   scrollToBottom(false);
 }
 
+// 追踪已渲染的消息ID，防止重复渲染
+const renderedMessageIds = new Set();
+
 function renderMessage(msg, animate = false) {
+  // 检查消息是否已渲染
+  if (renderedMessageIds.has(msg.id)) {
+    console.log('消息已渲染，跳过:', msg.id);
+    return;
+  }
+  renderedMessageIds.add(msg.id);
+  
+  // 限制 Set 大小
+  if (renderedMessageIds.size > 500) {
+    const first = renderedMessageIds.values().next().value;
+    renderedMessageIds.delete(first);
+  }
+  
   const list = document.getElementById('messages-list');
+  if (!list) return;
+  
+  // 再次检查DOM中是否已存在该消息
+  if (list.querySelector(`[data-msg-id="${msg.id}"]`)) {
+    console.log('DOM中已存在消息，跳过:', msg.id);
+    return;
+  }
+  
   list.insertAdjacentHTML('beforeend', buildMessageHtml(msg, animate));
 }
 

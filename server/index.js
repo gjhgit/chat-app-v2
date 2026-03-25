@@ -33,6 +33,67 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// ─── 数据持久化配置 ───────────────────────────────────────────────────────────────
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
+
+// 确保数据目录存在
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// 加载数据
+function loadData() {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const usersData = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+      usersData.forEach(u => users.set(u.id, u));
+      console.log(`✅ 加载 ${usersData.length} 个用户`);
+    }
+    if (fs.existsSync(ROOMS_FILE)) {
+      const roomsData = JSON.parse(fs.readFileSync(ROOMS_FILE, 'utf8'));
+      roomsData.forEach(r => {
+        // 确保公共大厅始终存在
+        if (r.id !== 'public') rooms.set(r.id, r);
+      });
+      console.log(`✅ 加载 ${roomsData.length} 个房间`);
+    }
+  } catch (err) {
+    console.error('加载数据失败:', err);
+  }
+}
+
+// 保存数据
+function saveData() {
+  try {
+    // 保存用户（排除敏感信息）
+    const usersData = [...users.values()].map(u => ({
+      id: u.id,
+      username: u.username,
+      password: u.password,
+      avatar: u.avatar,
+      color: u.color,
+      createdAt: u.createdAt
+    }));
+    fs.writeFileSync(USERS_FILE, JSON.stringify(usersData, null, 2));
+    
+    // 保存房间（排除临时数据）
+    const roomsData = [...rooms.values()].map(r => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      members: r.members,
+      messages: r.messages.slice(-200), // 只保留最近200条消息
+      createdAt: r.createdAt
+    }));
+    fs.writeFileSync(ROOMS_FILE, JSON.stringify(roomsData, null, 2));
+  } catch (err) {
+    console.error('保存数据失败:', err);
+  }
+}
+
+// 定期保存数据
+setInterval(saveData, 60000); // 每分钟保存一次
+
 // ─── 内存数据库 ─────────────────────────────────────────────────────────────────
 const users = new Map();         // userId -> { id, username, avatar, color, online, socketId }
 const rooms = new Map();         // roomId -> { id, name, type, members, messages, createdAt }
@@ -47,6 +108,9 @@ rooms.set('public', {
   messages: [],
   createdAt: Date.now()
 });
+
+// 启动时加载数据
+loadData();
 
 const AVATAR_COLORS = ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F','#BB8FCE','#F1948A'];
 
@@ -127,6 +191,44 @@ app.get('/api/rooms', (req, res) => {
     unread: 0
   }));
   res.json(list);
+});
+
+// 删除/退出房间
+app.delete('/api/rooms/:roomId', (req, res) => {
+  const token = req.headers.authorization;
+  const userId = sessions.get(token);
+  if (!userId) return res.status(401).json({ error: '未授权' });
+  
+  const { roomId } = req.params;
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: '房间不存在' });
+  
+  // 不能删除公共大厅
+  if (roomId === 'public') return res.status(403).json({ error: '不能删除公共大厅' });
+  
+  if (room.type === 'private') {
+    // 私聊：从用户列表中移除
+    room.members = room.members.filter(id => id !== userId);
+    // 如果成员为空，删除房间
+    if (room.members.length === 0) {
+      rooms.delete(roomId);
+    }
+  } else if (room.type === 'group') {
+    // 群聊：退出群聊
+    room.members = room.members.filter(id => id !== userId);
+    // 如果成员为空，删除房间
+    if (room.members.length === 0) {
+      rooms.delete(roomId);
+    }
+  }
+  
+  // 通知房间其他成员
+  io.to(roomId).emit('member_left', { roomId, userId, username: users.get(userId)?.username });
+  
+  // 保存数据
+  saveData();
+  
+  res.json({ success: true });
 });
 
 // ─── Socket.IO ──────────────────────────────────────────────────────────────────
