@@ -304,7 +304,7 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system, 'PingFa
   .sidebar { width: 100vw; position: fixed; z-index: 10; }
   .sidebar.hidden-mobile { transform: translateX(-100%); }
 
-  .main-chat { width: 100vw; position: fixed; left: 0; top: 0; }
+  .main-chat { width: 100vw; position: fixed; left: 0; top: 0; height: 100vh; }
   .main-chat.hidden-mobile { transform: translateX(100%); }
 
   .back-btn { display: block !important; }
@@ -313,6 +313,34 @@ html, body { height: 100%; overflow: hidden; font-family: -apple-system, 'PingFa
 
   .emoji-picker { width: calc(100vw - 24px); left: 12px; bottom: 120px; }
   .msg-wrapper { max-width: 88%; }
+  
+  /* 手机端消息容器确保可滚动 */
+  .messages-container {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(100vh - 120px); /* 减去输入区域高度 */
+  }
+  
+  /* 手机端输入区域固定在底部 */
+  .input-area {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--header-bg);
+    border-top: 1px solid var(--border);
+    padding: 8px 12px;
+    z-index: 100;
+  }
+  
+  /* 手机端聊天窗口布局调整 */
+  .chat-window {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding-bottom: 80px; /* 为输入区域留出空间 */
+  }
 }
 @media (min-width: 769px) {
   .main-chat { position: static; flex: 1; transform: none !important; }
