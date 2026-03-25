@@ -63,9 +63,14 @@ function initSocket() {
 
   socket.on('history', ({ roomId, messages }) => {
     const room = state.rooms.get(roomId) || { id: roomId, messages: [] };
-    room.messages = messages;
+    room.messages = messages || [];
     state.rooms.set(roomId, room);
-    if (roomId === state.currentRoomId) renderHistory(messages);
+    // 如果当前正在查看这个房间，立即渲染历史消息
+    if (roomId === state.currentRoomId) {
+      renderHistory(room.messages);
+    }
+    // 更新房间列表预览
+    renderRoomList();
   });
 
   socket.on('online_users', (users) => {
@@ -311,9 +316,14 @@ function openRoom(roomId, roomName, type) {
 
   // 渲染历史消息
   const room = state.rooms.get(roomId);
-  document.getElementById('messages-list').innerHTML = '';
+  const messagesList = document.getElementById('messages-list');
+  messagesList.innerHTML = '';
+  
   if (room?.messages?.length > 0) {
     renderHistory(room.messages);
+  } else if (room) {
+    // 房间存在但没有消息，显示提示
+    messagesList.innerHTML = '<div class="sys-msg">暂无消息，开始聊天吧！</div>';
   }
 
   updateRoomStatus(roomId, type);
@@ -347,7 +357,15 @@ function backToSidebar() {
 // ═══════════════════════════════════════════
 function renderHistory(messages) {
   const list = document.getElementById('messages-list');
+  if (!list) return;
+  
   list.innerHTML = '';
+  
+  if (!messages || messages.length === 0) {
+    list.innerHTML = '<div class="sys-msg">暂无消息</div>';
+    return;
+  }
+  
   let lastDate = '';
   messages.forEach(msg => {
     const msgDate = new Date(msg.timestamp).toLocaleDateString('zh-CN');

@@ -106,15 +106,21 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   });
 });
 
-// 获取房间列表
+// 获取房间列表 - 只返回用户有权限的房间
 app.get('/api/rooms', (req, res) => {
   const token = req.headers.authorization;
   const userId = sessions.get(token);
   if (!userId) return res.status(401).json({ error: '未授权' });
 
-  const list = [...rooms.values()].filter(r =>
-    r.type === 'group' || r.members.includes(userId)
-  ).map(r => ({
+  const list = [...rooms.values()].filter(r => {
+    // 公共大厅对所有人可见
+    if (r.id === 'public') return true;
+    // 群组：成员可见
+    if (r.type === 'group') return r.members.includes(userId);
+    // 私聊：参与者可见
+    if (r.type === 'private') return r.members.includes(userId);
+    return false;
+  }).map(r => ({
     id: r.id, name: r.name, type: r.type,
     lastMessage: r.messages[r.messages.length - 1] || null,
     members: r.members.length,
@@ -153,9 +159,16 @@ io.on('connection', (socket) => {
       userId, username: user.username, color: user.color, avatar: user.avatar
     });
 
-    // 推送历史消息 (最近100条)
+    // 推送公共大厅历史消息 (最近100条)
     const publicRoom = rooms.get('public');
     socket.emit('history', { roomId: 'public', messages: publicRoom.messages.slice(-100) });
+    
+    // 推送用户所有相关房间的历史消息
+    [...rooms.values()].forEach(r => {
+      if (r.id !== 'public' && r.members.includes(userId)) {
+        socket.emit('history', { roomId: r.id, messages: r.messages.slice(-100) });
+      }
+    });
 
     // 推送在线用户
     broadcastOnlineUsers();
