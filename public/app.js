@@ -43,7 +43,23 @@ function initSocket() {
 
   socket.on('auth_error', (msg) => showToast('认证失败: ' + msg));
 
+  // 消息去重：使用 Set 存储已接收的消息ID
+  const receivedMessageIds = new Set();
+  
   socket.on('message', (msg) => {
+    // 防止重复接收同一条消息
+    if (receivedMessageIds.has(msg.id)) {
+      console.log('忽略重复消息:', msg.id);
+      return;
+    }
+    receivedMessageIds.add(msg.id);
+    
+    // 限制 Set 大小，防止内存泄漏
+    if (receivedMessageIds.size > 1000) {
+      const first = receivedMessageIds.values().next().value;
+      receivedMessageIds.delete(first);
+    }
+    
     const room = state.rooms.get(msg.roomId);
     if (!room) state.rooms.set(msg.roomId, { id: msg.roomId, name: msg.roomId, messages: [] });
     state.rooms.get(msg.roomId).messages = state.rooms.get(msg.roomId).messages || [];
@@ -790,6 +806,41 @@ document.addEventListener('click', (e) => {
     document.getElementById('emoji-picker')?.classList.add('hidden');
   }
 });
+
+// 手机端返回键处理：从聊天室返回到聊天列表
+if (window.innerWidth <= 768) {
+  // 使用 history API 管理返回状态
+  let historyPushed = false;
+  
+  // 当打开聊天室时，添加历史记录
+  const originalOpenRoom = openRoom;
+  window.openRoom = function(roomId, roomName, type) {
+    if (!historyPushed && state.isMobile) {
+      history.pushState({ page: 'chat' }, '', '#chat');
+      historyPushed = true;
+    }
+    return originalOpenRoom(roomId, roomName, type);
+  };
+  
+  // 监听返回键
+  window.addEventListener('popstate', (e) => {
+    if (state.isMobile && state.currentRoomId) {
+      // 如果有打开的聊天室，先返回列表
+      backToSidebar();
+      state.currentRoomId = null;
+      historyPushed = false;
+      // 阻止默认返回行为
+      e.preventDefault();
+    }
+  });
+  
+  // 返回列表时重置历史状态
+  const originalBackToSidebar = backToSidebar;
+  window.backToSidebar = function() {
+    historyPushed = false;
+    return originalBackToSidebar();
+  };
+}
 
 // 恢复会话
 const savedToken = localStorage.getItem('chat_token');
